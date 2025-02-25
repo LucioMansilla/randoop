@@ -266,7 +266,7 @@ public final class Sequence {
    *
    * @return the variables used in the last statement of this sequence
    */
-  List<Variable> getVariablesOfLastStatement() {
+  public List<Variable> getVariablesOfLastStatement() {
     return this.lastStatementVariables;
   }
 
@@ -277,7 +277,7 @@ public final class Sequence {
    *
    * @return the types of the variables in the last statement of this sequence
    */
-  List<Type> getTypesForLastStatement() {
+  public List<Type> getTypesForLastStatement() {
     return this.lastStatementTypes;
   }
 
@@ -375,7 +375,7 @@ public final class Sequence {
     return !activeFlags.isEmpty();
   }
 
-  boolean isActive(int i) {
+  public boolean isActive(int i) {
     return activeFlags.get(i);
   }
 

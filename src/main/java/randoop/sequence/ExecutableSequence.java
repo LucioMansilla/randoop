@@ -462,7 +462,7 @@ public class ExecutableSequence {
    * @return the result of executing the index-th element of the sequence, if that element's
    *     execution completed normally
    */
-  private Object getValue(int index) {
+  public Object getValue(int index) {
     ExecutionOutcome result = getResult(index);
     if (result instanceof NormalExecution) {
       return ((NormalExecution) result).getRuntimeValue();

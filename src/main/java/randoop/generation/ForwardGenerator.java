@@ -1,5 +1,7 @@
 package randoop.generation;
 
+import canonicalizer.CanonicalizerConfig;
+import canonicalizer.ObjectCanonicalizer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -10,10 +12,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import org.plumelib.util.CollectionsPlume;
 import org.plumelib.util.StringsPlume;
 import org.plumelib.util.SystemPlume;
-import randoop.DummyVisitor;
-import randoop.Globals;
-import randoop.NormalExecution;
-import randoop.SubTypeSet;
+import randoop.*;
 import randoop.main.GenInputsAbstract;
 import randoop.main.RandoopBug;
 import randoop.operation.NonreceiverTerm;
@@ -24,7 +23,6 @@ import randoop.reflection.RandoopInstantiationError;
 import randoop.reflection.TypeInstantiator;
 import randoop.sequence.ExecutableSequence;
 import randoop.sequence.Sequence;
-import randoop.sequence.SequenceExceptionError;
 import randoop.sequence.Statement;
 import randoop.sequence.Value;
 import randoop.sequence.Variable;
@@ -44,13 +42,13 @@ import randoop.util.SimpleList;
 
 /** Randoop's forward, component-based generator. */
 public class ForwardGenerator extends AbstractGenerator {
+  private ObjectCanonicalizer canonicalizer;
 
   /**
    * The set of ALL sequences ever generated, including sequences that were executed and then
    * discarded.
    *
-   * <p>This must be ordered by insertion to allow for flaky test history collection in {@link
-   * randoop.main.GenTests#printSequenceExceptionError(AbstractGenerator, SequenceExceptionError)}.
+   * <p>This must be ordered by insertion to allow for flaky test history collection in .
    */
   private final LinkedHashSet<Sequence> allSequences = new LinkedHashSet<>();
 
@@ -159,6 +157,16 @@ public class ForwardGenerator extends AbstractGenerator {
       default:
         throw new Error("Unhandled --input-selection: " + GenInputsAbstract.input_selection);
     }
+
+    CanonicalizerConfig cfg = new CanonicalizerConfig();
+    // Consider up to three objects for each class
+    // cfg.setMaxObjects(3);
+    // Consider up to three values in arrays
+    // cfg.setMaxArrayValues(3);
+    // Store all the different canonical objects
+    cfg.setStorageType(ObjectCanonicalizer.StorageType.OBJECTS);
+    // cfg.setDontSaveFieldsRegex(".*\\.modCount");
+    canonicalizer = new ObjectCanonicalizer(cfg);
   }
 
   /**
@@ -392,6 +400,28 @@ public class ForwardGenerator extends AbstractGenerator {
         continue;
       }
 
+      // Clear all flags if sequence creates objects exceeding the scopes
+      List<Type> formalTypes = seq.sequence.getTypesForLastStatement();
+      List<Variable> arguments = seq.sequence.getVariablesOfLastStatement();
+      for (int j = 0; j < formalTypes.size(); j++) {
+        Variable argument = arguments.get(j);
+        if (seq.sequence.isActive(argument.getDeclIndex())) {
+          Object object = seq.getValue(argument.getDeclIndex());
+          canonicalizer.canonicalize(object);
+          System.out.println(canonicalizer.getObjectRepresentation().toString());
+          if (!canonicalizer.lastObjectIsNew()) {
+            seq.sequence.clearActiveFlag(argument.getDeclIndex());
+          } else {
+            /*
+              try {
+                  outputStream.writeObject(object);
+              } catch (IOException ex) {
+                  throw new RuntimeException(ex);
+              }
+            */
+          }
+        }
+      }
       Log.logPrintf("Making index " + i + " active.%n");
     }
   }
