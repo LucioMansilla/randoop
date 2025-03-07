@@ -941,6 +941,12 @@ public abstract class GenInputsAbstract extends CommandHandler {
   @Option("<filename> Write operation usage counts to this file")
   public static FileWriterWithName operation_history_log = null;
 
+  @Option("Enable or disable the canonicalization stage (state matching)")
+  public static boolean state_matching = false;
+
+  @Option("File to which to serialize new objects via XStream")
+  public static String xstream_serialize_file = null;
+
   /**
    * True if Randoop should print generated tests that do not compile, which indicate Randoop bugs.
    */

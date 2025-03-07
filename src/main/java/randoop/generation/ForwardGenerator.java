@@ -2,6 +2,10 @@ package randoop.generation;
 
 import canonicalizer.CanonicalizerConfig;
 import canonicalizer.ObjectCanonicalizer;
+import com.thoughtworks.xstream.XStream;
+import java.io.ObjectOutputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -84,6 +88,12 @@ public class ForwardGenerator extends AbstractGenerator {
    */
   private Set<Object> runtimePrimitivesSeen = new LinkedHashSet<>();
 
+  // TODO: Add comment for this field
+  private XStream xstream;
+
+  // TODO: Add comment for this field
+  private ObjectOutputStream xstreamOut;
+
   /**
    * Create a forward generator.
    *
@@ -165,8 +175,21 @@ public class ForwardGenerator extends AbstractGenerator {
     // cfg.setMaxArrayValues(3);
     // Store all the different canonical objects
     cfg.setStorageType(ObjectCanonicalizer.StorageType.OBJECTS);
-    // cfg.setDontSaveFieldsRegex(".*\\.modCount");
+    cfg.setDontSaveFieldsRegex(".*\\.modCount");
     canonicalizer = new ObjectCanonicalizer(cfg);
+
+    if (GenInputsAbstract.xstream_serialize_file != null) {
+      this.xstream = new XStream();
+      try {
+        // Usa createObjectOutputStream para que genere el <object-stream> inicial
+        // en el XML (esto es propio de XStream)
+        this.xstreamOut =
+            xstream.createObjectOutputStream(
+                Files.newOutputStream(Paths.get(GenInputsAbstract.xstream_serialize_file)));
+      } catch (Exception e) {
+        throw new Error("Error creando el stream de salida XStream: " + e.getMessage(), e);
+      }
+    }
   }
 
   /**
@@ -399,8 +422,10 @@ public class ForwardGenerator extends AbstractGenerator {
         }
         continue;
       }
+      Log.logPrintf("Making index " + i + " active.%n");
+    }
 
-      // Clear all flags if sequence creates objects exceeding the scopes
+    if (GenInputsAbstract.state_matching) {
       List<Type> formalTypes = seq.sequence.getTypesForLastStatement();
       List<Variable> arguments = seq.sequence.getVariablesOfLastStatement();
       for (int j = 0; j < formalTypes.size(); j++) {
@@ -408,21 +433,32 @@ public class ForwardGenerator extends AbstractGenerator {
         if (seq.sequence.isActive(argument.getDeclIndex())) {
           Object object = seq.getValue(argument.getDeclIndex());
           canonicalizer.canonicalize(object);
-          System.out.println(canonicalizer.getObjectRepresentation().toString());
           if (!canonicalizer.lastObjectIsNew()) {
             seq.sequence.clearActiveFlag(argument.getDeclIndex());
-          } else {
-            /*
-              try {
-                  outputStream.writeObject(object);
-              } catch (IOException ex) {
-                  throw new RuntimeException(ex);
-              }
-            */
           }
         }
       }
-      Log.logPrintf("Making index " + i + " active.%n");
+    }
+
+    if (this.xstreamOut != null) {
+      List<Variable> arguments = seq.sequence.getVariablesOfLastStatement();
+      for (Variable argument : arguments) {
+        if (seq.sequence.isActive(argument.getDeclIndex())) {
+          Object object = seq.getValue(argument.getDeclIndex());
+          if (object != null) {
+            String clsName = object.getClass().getName();
+            if (clsName.equals(GenInputsAbstract.testclass.get(0))) {
+              if (!GenInputsAbstract.state_matching || canonicalizer.lastObjectIsNew()) {
+                try {
+                  this.xstreamOut.writeObject(object);
+                } catch (Exception e) {
+                  throw new RuntimeException("Error serializando con XStream", e);
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 
